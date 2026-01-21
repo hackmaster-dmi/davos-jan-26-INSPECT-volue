@@ -287,7 +287,7 @@ export function EuropePriceMap({ date }: EuropePriceMapProps) {
 
       <div className="relative rounded-xl overflow-hidden border border-border bg-slate-50 shadow-sm" style={{ height: "520px" }}>
         {isLoading && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/50 backdrop-blur-sm">
+          <div className="absolute inset-0 z-40 flex items-center justify-center bg-white/50 backdrop-blur-sm">
             <div className="text-sm font-medium text-muted-foreground animate-pulse">Loading market data...</div>
           </div>
         )}

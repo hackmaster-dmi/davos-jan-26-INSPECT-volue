@@ -312,7 +312,7 @@ export function ChatInterface() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="fixed z-40 bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden
+            className="fixed z-[1000] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden
               right-5 bottom-24 w-[calc(100%-2.5rem)] max-w-[450px] h-[75vh] max-h-[600px]
               sm:right-5 sm:bottom-24 sm:w-[450px] sm:h-[600px]"
           >
