@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 import volue_insight_timeseries as vit
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from agent import SESSION, run_agent_logic
 
 load_dotenv()
 
@@ -27,6 +29,11 @@ EU_AREAS = [
 ]
 
 DEFAULT_RUN = "EC00"
+
+# --- PYDANTIC MODELS ---
+class ChatRequest(BaseModel):
+    message: str
+    session_id: Optional[str] = None  # User sends this back to keep memory
 
 def make_session() -> vit.Session:
     cid = os.environ.get("CLIENT_ID")
@@ -137,3 +144,128 @@ def europe_hourly_prices(
         "hours": hours,
         "missing": missing,
     }
+
+@app.get("/v1/dashboard/swiss-smart")
+def get_swiss_forecast_chart():
+    """
+    Restituisce i dati di previsione per la Svizzera (CH) formattati per Chart.js,
+    identificando il momento migliore per consumare energia.
+    """
+    if not SESSION:
+        raise HTTPException(status_code=503, detail="Volue Session not initialized")
+
+    curve_name = 'pri ch spot ec00 €/mwh cet h f'
+    
+    try:
+        # 1. Recupera la curva
+        curve = SESSION.get_curve(name=curve_name)
+        
+        # 2. Scarica l'ULTIMA previsione (Latest Forecast)
+        # Questo prende automaticamente l'ultimo "run" disponibile
+        latest_forecast = curve.get_latest(with_data=True)
+        
+        if latest_forecast is None:
+            raise HTTPException(status_code=404, detail="No forecast data found")
+
+        # 3. Conversione in Pandas
+        ts = latest_forecast.to_pandas()
+        
+        # Filtro: prendiamo da "adesso" fino alle prossime 48 ore
+        now = pd.Timestamp.now(tz=ts.index.tz)
+        end_view = now + pd.Timedelta(hours=48)
+        
+        # Slice dei dati
+        subset = ts[(ts.index >= now) & (ts.index <= end_view)]
+        
+        # Se il subset è vuoto (es. siamo a fine giornata e la forecast finisce), prendiamo gli ultimi dati disponibili
+        if subset.empty:
+            subset = ts.tail(24)
+
+        # 4. Analisi "Smart"
+        min_price = subset.min()
+        max_price = subset.max()
+        best_time_idx = subset.idxmin() # Timestamp del prezzo minimo
+        
+        # Formattazione per il Frontend
+        best_time_str = best_time_idx.strftime("%H:%M")
+        best_day_str = best_time_idx.strftime("%d/%m")
+
+        # 5. Costruzione JSON per Chart.js
+        # Chart.js vuole due array principali: labels (asse X) e data (asse Y)
+        labels = [t.strftime("%Y-%m-%dT%H:%M:%S") for t in subset.index]
+        values = [round(float(v), 2) for v in subset.values]
+        
+        # Creiamo un array di colori per evidenziare il punto minimo nel grafico
+        # Default blu, ma il punto minimo diventa Rosso
+        point_colors = []
+        point_radius = []
+        for v in values:
+            if v == round(float(min_price), 2):
+                point_colors.append('red') # Evidenzia il minimo
+                point_radius.append(6)
+            else:
+                point_colors.append('rgba(54, 162, 235, 1)')
+                point_radius.append(3)
+
+        response_data = {
+            "analysis": {
+                "current_price": round(float(subset.iloc[0]), 2),
+                "min_price": round(float(min_price), 2),
+                "max_price": round(float(max_price), 2),
+                "best_time_label": f"{best_time_str} ({best_day_str})",
+                "advice": f"Il momento migliore per consumare è alle {best_time_str} con un prezzo di {min_price:.2f} €/MWh."
+            },
+            "chart_js": {
+                "type": "line",
+                "data": {
+                    "labels": labels,
+                    "datasets": [
+                        {
+                            "label": "Price Forecast (CH) - EC00",
+                            "data": values,
+                            "borderColor": "rgba(54, 162, 235, 1)",
+                            "backgroundColor": "rgba(54, 162, 235, 0.2)",
+                            "borderWidth": 2,
+                            "pointBackgroundColor": point_colors,
+                            "pointRadius": point_radius,
+                            "tension": 0.4 # Curvatura linea
+                        }
+                    ]
+                },
+                "options": {
+                    "responsive": True,
+                    "plugins": {
+                        "legend": {"display": False},
+                        "title": {"display": True, "text": "Previsione 48h Prezzi Spot (Svizzera)"}
+                    },
+                    "scales": {
+                        "y": {"beginAtZero": False, "title": {"display": True, "text": "€ / MWh"}}
+                    }
+                }
+            }
+        }
+        
+        return response_data
+
+    except Exception as e:
+        print(f"ERROR: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/v1/chat")
+async def chat_endpoint(request: ChatRequest):
+    """
+    Chat with the Energy Agent.
+    
+    To start a conversation:
+    Input: {"message": "Hi, how are you?"} 
+    Output: {"text_content": "...", "session_id": "123-abc-..."}
+    
+    To continue conversation (context aware):
+    Input: {"message": "And in Germany?", "session_id": "123-abc-..."}
+    """
+    try:
+        # We pass the session_id (if exists) to the agent logic
+        return run_agent_logic(request.message, request.session_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
