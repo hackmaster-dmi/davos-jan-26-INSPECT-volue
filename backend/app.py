@@ -9,6 +9,14 @@ import volue_insight_timeseries as vit
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from agent import SESSION, run_agent_logic
+from fastapi import Body
+from arch import arch_model
+from scipy.stats import median_abs_deviation
+import numpy as np
+
+class VolatilityRequest(BaseModel):
+    area: str
+    date: date
 
 load_dotenv()
 
@@ -269,3 +277,86 @@ async def chat_endpoint(request: ChatRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/v1/volatility")
+def volatility_anomaly_check(req: VolatilityRequest = Body(...)):
+    area = req.area.lower()
+    date_ = req.date
+
+    if area not in EU_AREAS:
+        raise HTTPException(status_code=400, detail=f"Invalid area: {area}")
+
+    # Fetch past 6 months of hourly data
+    end = datetime(date_.year, date_.month, date_.day, 23, 0, 0)
+    start = end - pd.DateOffset(months=6)
+
+    curve_name_actual = f"pri {area} spot €/mwh cet h a".lower()
+
+    try:
+        series = fetch_curve_series(curve_name_actual, start, end)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Curve not found for area: {area}")
+
+    if series.empty:
+        raise HTTPException(status_code=404, detail=f"No data available for area: {area}")
+
+    # --- Volatility estimation ---
+    baseline = series.rolling(window=24, center=True, min_periods=12).mean()
+    returns = series - baseline
+    returns = returns.dropna()
+
+    if len(returns) < 50:
+        raise HTTPException(status_code=422, detail="Not enough data for volatility estimation")
+
+    # Fit GARCH(1,1) model
+    garch = arch_model(returns, vol="Garch", p=1, q=1, mean="Constant", dist="normal")
+    res = garch.fit(disp="off")
+    cond_vol = res.conditional_volatility
+
+    low_q = cond_vol.quantile(0.33)
+    high_q = cond_vol.quantile(0.67)
+
+    def classify_vol(v):
+        if v < low_q:
+            return "low"
+        elif v > high_q:
+            return "high"
+        else:
+            return "normal"
+
+    # Slice today's data for chart
+    today_series = series[series.index.date == date_]
+    today_vol = cond_vol[cond_vol.index.date == date_]
+
+    # Volatility level & percentile
+    vol_level = classify_vol(today_vol.mean()) if not today_vol.empty else "unknown"
+    vol_percentile = float((cond_vol <= today_vol.mean()).mean()) if not today_vol.empty else None
+
+    # Price anomaly detection using MAD
+    mad_val = median_abs_deviation(returns, scale="normal")
+    median_val = returns.median()
+    price_today = returns[returns.index.date == date_]
+    excessive_return = None
+    unusual = False
+
+    if not price_today.empty:
+        excessive_return = (price_today - median_val).clip(lower=0).mean()
+        unusual = bool((np.abs(price_today - median_val) / mad_val > 3).any())
+
+    # --- Prepare chart arrays ---
+    chart_price = today_series.round(2).tolist()
+    chart_volatility = today_vol.round(2).tolist()
+
+    return {
+        "area": area.upper(),
+        "date": date_.isoformat(),
+        "volatility": {
+            "level": vol_level,
+            "percentile": vol_percentile,
+            "chart_volatility": chart_volatility  # hourly volatility
+        },
+        "price_anomaly": {
+            "unusual": unusual,
+            "excessive_return": float(excessive_return) if excessive_return is not None else None,
+            "chart_price": chart_price  # hourly prices
+        }
+    }
