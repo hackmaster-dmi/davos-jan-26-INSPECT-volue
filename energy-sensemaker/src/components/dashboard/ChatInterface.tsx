@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MessageSquare, Send, ChevronDown, Sparkles, BarChart3, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+   import { cn } from "@/lib/utils";
 import {
   Tooltip,
   TooltipContent,
@@ -288,14 +289,25 @@ export function ChatInterface() {
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <button
-              ref={buttonRef}
-              onClick={() => setIsOpen(!isOpen)}
-              className="fixed right-5 bottom-5 z-50 w-14 h-14 rounded-full bg-accent text-accent-foreground shadow-lg hover:bg-accent/90 transition-all flex items-center justify-center hover:scale-105 active:scale-95"
-              aria-label="Open Market Intelligence Agent"
-            >
-              {isOpen ? <X className="w-6 h-6" /> : <MessageSquare className="w-6 h-6" />}
-            </button>
+
+<button
+  ref={buttonRef}
+  onClick={() => setIsOpen(!isOpen)}
+  className={cn(
+    "fixed right-5 bottom-5 z-50 w-14 h-14 rounded-full shadow-lg transition-all flex items-center justify-center hover:scale-105 active:scale-95",
+    isOpen
+      ? "bg-accent text-accent-foreground hover:bg-accent/90"
+      : "bg-white text-accent hover:bg-muted"
+  )}
+  aria-label="Open Market Intelligence Agent"
+>
+  {isOpen ? (
+    <X className="w-6 h-6" />
+  ) : (
+    <img src="/riga.svg" className="w-6 h-6" alt="Chat" />
+  )}
+</button>
+
           </TooltipTrigger>
           <TooltipContent side="left" sideOffset={8}>
             <p>Market Agent</p>
