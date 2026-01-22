@@ -48,7 +48,7 @@ export function ForecastsChart({ forecasts, area }: ForecastsChartProps) {
   const seriesConfig = [
     { key: "Spot Price", color: "#3b82f6" }, // Blue
     { key: "Consumption Forecast", color: "#ef4444" }, // Red
-    { key: "SPV Forecast", color: "#f59e0b" }, // Yellow/Orange
+    { key: "Solar Panel Forecast", color: "#f59e0b" }, // Yellow/Orange
     { key: "Wind Forecast", color: "#10b981" }, // Green
   ];
 

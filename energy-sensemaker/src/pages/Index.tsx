@@ -85,8 +85,8 @@ const Index = () => {
             <div className="inline-flex items-center p-1 bg-muted/40 backdrop-blur-md rounded-full border border-border/50 shadow-sm">
               {[
                 { id: "overview", label: "Overview", icon: LayoutDashboard },
+                                { id: "forecast", label: "Forecasts", icon: LineChart },
                 { id: "map", label: "Market Map", icon: MapIcon },
-                { id: "forecast", label: "Forecasts", icon: LineChart },
               ].map((tab) => (
                 <button
                   key={tab.id}

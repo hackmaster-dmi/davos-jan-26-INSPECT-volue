@@ -377,7 +377,7 @@ def volatility_anomaly_check(req: VolatilityRequest = Body(...)):
     curves = {
         "Spot Price": f"pri de spot ec00 €/mwh cet min15 f",           # Forecasted day-ahead
         "Consumption Forecast": f"con de ec06 mwh/h cet min15 f",
-        "SPV Forecast": f"pro de spv ec06 mwh/h cet min15 f",
+        "Solar Panel Forecast": f"pro de spv ec06 mwh/h cet min15 f",
         "Wind Forecast": f"pro de wnd ec06 mwh/h cet min15 f"
     }   
     series_dict = {}
