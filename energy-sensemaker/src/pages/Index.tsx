@@ -171,7 +171,7 @@ const Index = () => {
             {/* FOOTER SEMPRE VISIBILE */}
             <footer className="mt-12 pt-8 border-t border-border/50">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground uppercase tracking-widest">
-                <p>Energy Market Signal Intelligence · System v2.5</p>
+                <p>Energy Market Signal Intelligence</p>
                 <p className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                   All systems operational
